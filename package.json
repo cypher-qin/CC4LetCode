@@ -2,6 +2,7 @@
   "name": "cc4letcode",
   "version": "0.1.0",
   "description": "本地算法研习室：由本地 Agent 与教学 Skill 驱动的 LeetCode 中文题解工作台",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "repository": {

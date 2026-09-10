@@ -1,0 +1,32 @@
+{
+  "name": "cc4letcode",
+  "version": "0.1.0",
+  "description": "本地算法研习室：由本地 Agent 与教学 Skill 驱动的 LeetCode 中文题解工作台",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "node server/index.js --dev",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "test": "node --test tests/*.test.js",
+    "doctor": "node scripts/doctor.mjs",
+    "doctor:json": "node scripts/doctor.mjs --json",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "6.1.1",
+    "entities": "8.1.0",
+    "express": "5.2.1",
+    "lucide-react": "1.43.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-markdown": "10.1.0",
+    "rehype-highlight": "7.0.2",
+    "remark-gfm": "4.0.1",
+    "sanitize-html": "2.17.7",
+    "vite": "8.2.2"
+  }
+}

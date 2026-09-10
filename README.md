@@ -7,7 +7,7 @@
 [![Node](https://img.shields.io/badge/Node.js-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Local only](https://img.shields.io/badge/network-127.0.0.1%20only-2f6feb)](#安全与隐私)
 [![Agents](https://img.shields.io/badge/agents-Codex%20%C2%B7%20DeepSeek%20Harness-6f42c1)](#本地-agent)
-[![Tests](https://img.shields.io/badge/tests-35%20passing-2ea043)](#测试与验证)
+[![Tests](https://img.shields.io/badge/tests-37%20passing-2ea043)](#测试与验证)
 
 </div>
 
@@ -179,6 +179,8 @@ Agent · DeepSeek Harness
 - **缺少 `agent-default-model`** → 运行一次 `dsh web`，在「设置 → 模型」中选择默认模型。
 - **凭据提示** → 只有在生成题解真的报 `MISSING_CREDENTIAL` / `AUTH` 时才需要处理：在 `dsh web` 的「设置 → 模型」中填入 DeepSeek API Key，或在启动本应用的终端里设置 `DEEPSEEK_API_KEY`。
 
+> 自检只比较文件与进程环境，不会真的调用模型。因此「全部通过」代表配置齐备，不等于网络一定连通；真正的连通性只有第一次生成时才能确认。
+
 ### 在代码中使用
 
 `scripts/doctor.mjs` 导出的函数可以在自己的脚本里复用：
@@ -217,6 +219,11 @@ console.log(report.agents.harness.ready);   // true / false
 - `dsh` 的自定义 Web profile 插件不会自动复制到 `headless`；本应用每次会传入自己的教学 Skill。
 
 自动发现成功后，「偏好设置 → DeepSeek Harness」显示可执行文件为 `node.exe`、参数包含 `scripts/dsh-adapter.mjs` 与官方 `.../dsh/lib/bin.js` 路径，这是预期配置。若曾手动保存过空配置，可填入这两个路径，或清空后重新自动发现。
+
+> **npm 全局目录不在 PATH 时**：自动发现会依次检查 PATH 的每个目录、Node 可执行文件所在目录、`%APPDATA%\npm`（Windows）。如果 `npm prefix -g` 指向别处（例如改过 npm 全局目录），把该目录加进 PATH 后重开终端，或在「偏好设置」中手动填写这两个路径：
+>
+> - 可执行文件：`node.exe` 的绝对路径（终端执行 `where node` 获取）
+> - 参数：`["<仓库绝对路径>/scripts/dsh-adapter.mjs","<npm 全局目录>/node_modules/@deepseek-ai/dsh/lib/bin.js"]`
 
 **自定义命令适配器**仍然保留：参数是 JSON 字符串数组，支持 `{promptFile}` / `{outputFile}` 占位符，从输出文件或 stdout 读取最终 Markdown。程序应把诊断写到 stderr，退出码须为 0；不支持 shell 管道与直接执行 `.cmd` / `.bat`（Python 脚本请用 `python.exe` 作为可执行文件）。
 
@@ -259,7 +266,7 @@ server/
   index.js                  Express API、Agent 进程编排、历史与导出
   core.js                   URL 校验、题面清理、Markdown 与文件名生成
   harness.js                Codex 发现与登录探测（应用与自检共用）
-  harness-discovery.js      从 PATH / %APPDATA%\npm 发现官方 dsh 的 lib/bin.js
+  harness-discovery.js      从 PATH / Node 同目录 / %APPDATA%\npm 发现官方 dsh 的 lib/bin.js（应用与自检共用）
   harness-network.js        DeepSeek 直连环境构造
   agent-network.js          Codex 的 Windows 系统代理继承
   agent-progress.js         Codex JSON 事件解析与诊断脱敏
@@ -300,15 +307,15 @@ tests/                      Node 内置测试运行器，覆盖核心逻辑、AP
 | `harnessArgs` | Harness 参数数组 | 必须是字符串数组 |
 | `timeoutSeconds` | 单次生成超时 | 限制在 30–900 秒，默认 300 |
 
-「偏好设置 → 检测 Agent」只检查已保存的适配器安装信息，**不发起模型请求**，不消耗额度。
+「偏好设置 → 检测已保存的 Agent」只检查已保存的适配器安装信息、**不发起模型请求**，不消耗额度（改完配置要先点「保存设置」，再点检测）。
 
 ### 环境变量
 
 | 变量 | 作用 | 默认值 |
 | --- | --- | --- |
-| `PORT` | HTTP 端口 | `3210` |
+| `PORT` | HTTP 端口（`scripts/start.ps1` 固定用 3210） | `3210` |
 | `CC4_DATA_DIR` | 运行时数据目录（替代仓库内 `.local`） | `<仓库>/.local` |
-| `DSH_HOME` | DSH 用户数据根目录，由 DSH 自己读取 | `~/.dsh` |
+| `DSH_HOME` | DSH 用户数据根目录，由 DSH 自己读取；未设置时自检按 `~/.dsh` 处理 | `~/.dsh` |
 | `DEEPSEEK_API_KEY` | DSH 凭据来源之一（优先级最高） | 未设置 |
 
 ### HTTP API
@@ -332,13 +339,13 @@ tests/                      Node 内置测试运行器，覆盖核心逻辑、AP
 ## 测试与验证
 
 ```powershell
-npm test                          # 35 项自动测试：核心逻辑、API 集成、自检、安全校验
+npm test                          # 37 项自动测试：核心逻辑、API 集成、自检、安全校验
 npm run build                     # 前端生产构建
 npm run doctor                    # 本地 Agent 自检（只读）
 node scripts/smoke.mjs            # 真实 LeetCode + 真实 Codex 端到端（会消耗模型额度，需应用已运行）
 ```
 
-自动测试覆盖：URL 限制与 SSRF 防护、题面 HTML 白名单清理、Markdown 与文件名生成、跨来源请求拒绝（含 Chrome 去掉端口号的回归场景）、Harness 输入输出协议与长提示词、推理内容不外泄、代理继承与直连策略、持久化、重复导出不覆盖、并发限制与取消，以及自检脚本在「什么都没有的机器」上不崩溃、不误判、不打印密钥。
+自动测试覆盖：URL 限制与 SSRF 防护、题面 HTML 白名单清理、Markdown 与文件名生成、跨来源请求拒绝（含 Chrome 去掉端口号的回归场景）、Harness 输入输出协议与长提示词、推理内容不外泄、代理继承与直连策略、dsh 三条发现路径与自检一致性、持久化、重复导出不覆盖、并发限制与取消，以及自检脚本在「什么都没有的机器」上不崩溃、不误判、不打印密钥。
 
 真实 LeetCode / Codex 联调与模拟适配器测试分开记录，`npm test` 不会消耗任何模型额度。
 
@@ -385,6 +392,36 @@ node scripts/smoke.mjs            # 真实 LeetCode + 真实 Codex 端到端（�
 初版需求与取舍：核心定位是求职算法学习助手，优先把读题、理解、代码对照与知识沉淀串起来；加入提示模式与个人思考以帮助主动训练；暂不做在线判题、自动提交、刷题统计或复杂课程体系。
 
 可继续迭代的方向：通过用户主动点击的浏览器扩展，把已登录页面的题面送入工作台；在支持 WebMCP 的浏览器中验证已注册的两个工具（读取工作台、打开历史记录）。
+
+---
+
+## 常见问题
+
+**端口 3210 被占用（`EADDRINUSE`）**
+先确认是不是上一次的服务还在：打开 <http://127.0.0.1:3210> 能看到工作台就说明已在运行，直接用即可。确实被别的程序占用时，换端口启动（自检报告中的「应用正在运行」也按同一端口判断）：
+
+```powershell
+$env:PORT=3211
+npm start
+```
+
+注意：一键脚本 `scripts/start.ps1` 固定使用 3210，改端口后请改用命令行启动。
+
+**怎么停止服务**
+`npm start` / `npm run dev` 在前台运行，按 `Ctrl+C` 停止。只有通过 **启动研习室.cmd** 启动的后台服务才用 **停止研习室.cmd** 关闭（它按 `.local/server.pid` 核对进程，不是本应用就什么都不做）。停止服务会一并终止正在生成的 Agent 任务。
+
+**双击启动后窗口一闪而过**
+`start.ps1` 出错时会打印原因并停在 `Press Enter to close`；如果窗口直接消失，说明脚本没被调用成功。改为在终端手动执行 `powershell -ExecutionPolicy Bypass -File scripts\start.ps1`，或逐条执行 `npm ci`、`npm run build`、`npm start` 查看完整报错（Windows PowerShell 5.1 不支持 `&&` 连接命令，请分行执行）。
+
+**生成一直卡住或提示连接失败**
+- Codex 报连接超时：先确认代理软件在运行。应用只把 Windows 手动代理写进 Agent 子进程的环境变量，不修改系统设置；PAC 自动配置不解析，需要在代理软件里改用固定端口模式。
+- DeepSeek Harness 报错：它固定直连、不使用任何代理，请直接检查能否访问 DeepSeek 端点，并确认 DSH 里的模型设置。超时可在「偏好设置 → 生成超时」中调大（上限 900 秒）。
+
+**改了 Skill 需要重启吗**
+不需要。`skills/algorithm-tutor/SKILL.md` 每次生成都会重新读取。
+
+**换了电脑/重新克隆后要做什么**
+`npm ci` → `npm run doctor`（重新确认 Agent 路径）→ `npm run build` → `npm start`。`.local/`、`dist/`、`node_modules/` 都不在版本控制内，不会随 `git clone` 带过来；历史记录与设置需要自行备份 `.local/` 目录。
 
 ---
 

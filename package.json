@@ -4,6 +4,14 @@
   "description": "本地算法研习室：由本地 Agent 与教学 Skill 驱动的 LeetCode 中文题解工作台",
   "private": true,
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cypher-qin/CC4LetCode.git"
+  },
+  "homepage": "https://github.com/cypher-qin/CC4LetCode#readme",
+  "bugs": {
+    "url": "https://github.com/cypher-qin/CC4LetCode/issues"
+  },
   "engines": {
     "node": ">=22.12"
   },

@@ -156,7 +156,7 @@ export async function checkCodex({ settings = {}, environment = process.env, run
 }
 
 /** 3. DeepSeek Harness：包、headless profile、模型配置与凭据。 */
-export async function checkHarness({ root = ROOT, settings = {}, environment = process.env, home = '', runCommand = run, discover = discoverHarness } = {}) {
+export async function checkHarness({ root = ROOT, settings = {}, environment = process.env, home = '', runCommand = run, discover = discoverHarness, processExecPath = process.execPath } = {}) {
   const checks = [];
   const dshHome = resolveDshHome(environment, home);
   const configuredPath = typeof settings.harnessPath === 'string' ? settings.harnessPath.trim() : '';
@@ -165,7 +165,8 @@ export async function checkHarness({ root = ROOT, settings = {}, environment = p
   let executable = configuredPath;
   let args = configuredArgs;
   if (!executable) {
-    const discovered = await discover(root, environment);
+    // 传入真实的 process.execPath，保证与应用内自动发现的顺序、结果完全一致。
+    const discovered = await discover(root, environment, processExecPath);
     executable = discovered.harnessPath;
     args = discovered.harnessArgs;
   }
@@ -316,7 +317,7 @@ export async function checkApp({ root = ROOT, settings = {}, environment = proce
     ok: Boolean(running),
     blocking: false,
     title: running ? `应用正在运行：http://127.0.0.1:${port}` : `应用当前未运行（端口 ${port} 无响应）`,
-    fix: running ? '' : '双击 启动研习室.cmd，或执行 npm run dev（开发）/ npm run build && npm start（正式）。'
+    fix: running ? '' : '双击 启动研习室.cmd，或执行 npm run dev（开发）；正式运行先 npm run build，再 npm start。'
   });
   return { checks, savePath: saveDir, settingsFound: Boolean(settings.__found) };
 }

@@ -174,7 +174,7 @@ Agent · DeepSeek Harness
 
 - **找不到 `codex`** → 安装 Codex CLI，或在应用「偏好设置 → Codex 可执行文件」中填写 `codex.exe` 的绝对路径，然后重新自检。
 - **`codex login status` 失败** → 在终端执行 `codex login`。检测只确认凭据存在，不代表模型网络连通。
-- **找不到 `dsh`** → `npm i -g @deepseek-ai/dsh`，然后重开终端让 PATH 生效（自检会依次检查 PATH、`%APPDATA%\npm`、Node 可执行文件同目录，与应用内的自动发现逻辑一致）。
+- **找不到 `dsh`** → `npm i -g @deepseek-ai/dsh`，然后重开终端让 PATH 生效（自检会依次检查 PATH、Node 可执行文件所在目录、`%APPDATA%\npm`，与应用内的自动发现逻辑一致）。
 - **`headless profile 尚未初始化`** → 运行一次 `dsh --profile headless --version`，DSH 会自动创建该 profile。
 - **缺少 `agent-default-model`** → 运行一次 `dsh web`，在「设置 → 模型」中选择默认模型。
 - **凭据提示** → 只有在生成题解真的报 `MISSING_CREDENTIAL` / `AUTH` 时才需要处理：在 `dsh web` 的「设置 → 模型」中填入 DeepSeek API Key，或在启动本应用的终端里设置 `DEEPSEEK_API_KEY`。

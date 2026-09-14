@@ -3,6 +3,7 @@
 import fs from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
+import { discoverHarness as discoverHarnessFromPath } from './harness-discovery.js';
 
 /** Run a probe and return its trimmed stdout, or '' when it cannot be run. */
 function readCommand(executable,args,options={}) {
@@ -27,6 +28,16 @@ export async function findCodex(environment=process.env) {
     }catch{}
   }
   return 'codex';
+}
+
+/**
+ * Same discovery the app runs at startup, with the Node executable injectable so
+ * the self-check can be tested. The search order itself lives in
+ * harness-discovery.js and stays shared by the app, the self-check and
+ * scripts/repair-dsh-web.mjs.
+ */
+export function discoverHarness(root,environment=process.env,processExecPath=process.execPath) {
+  return discoverHarnessFromPath(root,environment,processExecPath);
 }
 
 /** Read `codex login status`; a failure is reported, never treated as fatal. */

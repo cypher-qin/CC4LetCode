@@ -7,7 +7,7 @@
 [![Node](https://img.shields.io/badge/Node.js-%E2%89%A522.12-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Local only](https://img.shields.io/badge/network-127.0.0.1%20only-2f6feb)](#安全与隐私)
 [![Agents](https://img.shields.io/badge/agents-Codex%20%C2%B7%20DeepSeek%20Harness-6f42c1)](#本地-agent)
-[![Tests](https://img.shields.io/badge/tests-37%20passing-2ea043)](#测试与验证)
+[![Tests](https://img.shields.io/badge/tests-45%20passing-2ea043)](#测试与验证)
 
 </div>
 
@@ -40,8 +40,12 @@ CC4LetCode 是一个运行在本机的算法教学工作台，面向准备求职
 | 我的思考 | 生成前写下直觉与疑问，随题面一起发送，导出时一并保留 |
 | 三视图阅读 | 阅读 / 代码 / Markdown，代码视图只提取对应语言的代码块 |
 | 实时进度 | 显示启动、等待响应、连接重试、超时等真实状态；刷新页面可恢复进度；可随时停止生成 |
+| 继续追问 | 答案下方的悬浮窗里直接和同一个 Agent 交流，边看答案边提问；交流记录随答案保存与导出 |
+| 智能重新生成 | 不满意时可「延续之前的会话」或「在新会话中重新生成」，都能先写下修改意见；结果更新同一条研习记录，不新增 |
+| 专题与记录管理 | 自建专题、重命名、移动、语言筛选、最近更新排序；删除进回收站可恢复，批量操作一次提交 |
+| 教学 Skill 编辑 | 侧栏直接编辑与预览教学规范，保存带并发检查并自动备份旧版本 |
 | 本地历史 | 每次成功生成自动入库，支持搜索、重开、重新生成 |
-| 导出笔记 | UTF-8 `.md`，保留代码围栏、表格、题目链接与个人思考；重复导出自动改名，不覆盖你已编辑的笔记 |
+| 导出笔记 | UTF-8 `.md`，保留代码围栏、表格、题目链接、追问交流与个人思考；重复导出自动改名，不覆盖你已编辑的笔记 |
 | 本地自检 | `npm run doctor` 一条命令给出本机 Agent 环境报告与配置引导 |
 
 ---
@@ -240,11 +244,35 @@ console.log(report.agents.harness.ready);   // true / false
 
 首页第 88 题是明确标注的**内置示例**，用于离线打开工作台；点击「读取题目」才会取得实时题面。每次成功生成的内容自动存入本机历史，刷新后可从 **研习记录** 打开。
 
+### 不满意就继续聊
+
+答案不是一次成型的。生成完成后有两条继续的路：
+
+- **继续追问**：答案下方打开右下角悬浮窗，一边看答案一边提问，支持 `Ctrl+Enter` 发送、收起与历史回看。追问沿用这条答案原本的 Agent、语言与教学模式。
+- **重新生成**：可选 **延续之前的会话** 或 **在新会话中重新生成**，两种方式都能先写下你的修改意见。延续会话时 Agent 记得之前的讨论（适合「第 3 步再展开讲讲」「换个思路」）；换 Agent 或选新会话则从零开始。
+
+两者都**更新同一条研习记录**，不会堆出一串重复条目。旧答案与交流备份在 `.local/history-revisions/<记录编号>/`；重新生成或新增追问后需要重新导出笔记，已经导出的旧文件不会被覆盖。
+
+### 整理你的研习记录
+
+进入 **研习记录**，左侧可在「全部记录」「未分类」、自建专题与「回收站」之间切换：
+
+- 点「我的专题」旁的文件夹加号新建专题；进入专题后可重命名或删除。专题是单层目录，每条记录只属于一个专题。
+- 每条记录右侧的「⋯」可移动到专题、改显示名称、放入回收站；原题名始终保留，搜索对新旧名称都有效。
+- 勾选后可批量移动或批量放入回收站，移动时能直接「新建专题并移入」；全选只作用于当前筛选结果。
+- 支持语言筛选与排序（最近更新 / 最新创建，回收站可按最近删除）。
+- 删除专题不会删掉题解，记录回到未分类；回收站可单条或批量恢复，不会自动清空。
+- 训练工作台的「所属专题」下拉框可直接调整当前记录的归属。
+
+管理信息存在 `.local/library.json`（旁边留 `.bak` 备份），原始题面与答案仍在 `.local/history/`，互不覆盖。专题不是真实文件夹，不会移动你已经导出的 Markdown。
+
 ---
 
 ## 教学 Skill
 
-`skills/algorithm-tutor/SKILL.md` 是真实参与每次生成的规范，每次请求都会重新读取，**修改文件后不必重启后端**。它要求按固定结构输出：
+`skills/algorithm-tutor/SKILL.md` 是真实参与每次生成的规范，每次请求都会重新读取，**修改文件后不必重启后端**。除了直接改文件，也可以点侧栏的 **教学 Skill** 在网页里编辑与预览：保存会检查是否被其他窗口或本地改过，并把旧版本备份到 `.local/skill-backups/`；未保存的草稿留在当前标签页，关掉弹窗还能接着写。
+
+它要求按固定结构输出：
 
 1. 读懂题目 —— 用自己的话解释输入、输出、限制与易误解处
 2. 从直觉到最优解 —— 先讲朴素解法的代价，再讲推荐算法与不变量
@@ -265,29 +293,36 @@ src/                        React 工作台（main.jsx 界面、style.css 样式
 server/
   index.js                  Express API、Agent 进程编排、历史与导出
   core.js                   URL 校验、题面清理、Markdown 与文件名生成
-  harness.js                Codex 发现与登录探测（应用与自检共用）
-  harness-discovery.js      从 PATH / Node 同目录 / %APPDATA%\npm 发现官方 dsh 的 lib/bin.js（应用与自检共用）
+  harness.js                Codex 发现、dsh 发现与登录探测（应用与自检共用）
+  harness-discovery.js      从 PATH / Node 同目录 / %APPDATA%\npm 发现官方 dsh 的 lib/bin.js
+  library.js                专题、显示名称、回收站等管理元数据（独立于答案，单次原子写入）
   harness-network.js        DeepSeek 直连环境构造
   agent-network.js          Codex 的 Windows 系统代理继承
   agent-progress.js         Codex JSON 事件解析与诊断脱敏
   request-security.js       Host / Origin / 同源校验
   sample.js                 第 88 题内置示例题面
-skills/algorithm-tutor/     可编辑的教学 Skill（SKILL.md）
+skills/algorithm-tutor/       可编辑的教学 Skill（SKILL.md），也可在网页里改
 scripts/
-  doctor.mjs                本地 Agent 自检（只读，无模型请求）
-  dsh-adapter.mjs           UTF-8 stdin ↔ 官方 DSH headless 的桥接
-  start.ps1 / stop.ps1      Windows 一键启动与停止
-  smoke.mjs                 真实网络 + 真实 Agent 端到端验证（会消耗额度）
-tests/                      Node 内置测试运行器，覆盖核心逻辑、API 集成与自检
+  doctor.mjs                  本地 Agent 自检（只读，无模型请求）
+  dsh-adapter.mjs             UTF-8 stdin ↔ 官方 DSH headless 的桥接（含会话延续）
+  repair-dsh-web.mjs          修复 DSH Web 在本机 Chrome 下的 Origin 端口兼容问题
+  start.ps1 / stop.ps1        Windows 一键启动与停止
+  smoke.mjs / smoke-0913.mjs  真实网络 + 真实 Agent 端到端验证（会消耗额度）
+tests/                        Node 内置测试运行器，覆盖核心逻辑、API 集成、专题管理与自检
 启动研习室.cmd / 停止研习室.cmd   Windows 双击入口（调用 scripts/*.ps1）
 ```
+
+前端：`src/main.jsx` 是工作台外壳，`src/AnswerReader.jsx` 负责答案阅读与追问悬浮窗，`src/StudyTools.jsx` 提供教学 Skill 编辑器，`src/LibraryManager.jsx` 提供专题与回收站管理。
 
 ### 运行时生成的文件（默认不纳入版本控制）
 
 | 路径 | 内容 |
 | --- | --- |
 | `.local/settings.json` | 本地配置（保存目录、Agent 路径与参数、超时）。**不保存模型 API Key** |
-| `.local/history/` | 题面、题解、语言、模式、个人笔记与导出路径 |
+| `.local/history/` | 题面、题解、语言、模式、个人笔记、追问交流、Agent 会话编号与导出路径 |
+| `.local/history-revisions/<记录编号>/` | 重新生成前的旧答案与交流备份，不另计为研习记录 |
+| `.local/library.json` | 专题、显示名称、归属与回收站状态（旁边留 `.bak` 备份） |
+| `.local/skill-backups/` | 网页端保存教学 Skill 前自动备份的旧版本 |
 | `.local/runs/<任务编号>/` | 单次 Agent 运行目录与 `job.json` 诊断摘要；正常完成后删除临时提示词 |
 | `.local/access-denials.log` | 被拒绝的跨来源请求记录 |
 | `Docs/` | 默认导出目录，可在设置中改成任意有写权限的绝对路径 |
@@ -315,6 +350,7 @@ tests/                      Node 内置测试运行器，覆盖核心逻辑、AP
 | --- | --- | --- |
 | `PORT` | HTTP 端口（`scripts/start.ps1` 固定用 3210） | `3210` |
 | `CC4_DATA_DIR` | 运行时数据目录（替代仓库内 `.local`） | `<仓库>/.local` |
+| `CC4_SKILL_FILE` | 改用其他文件作为教学 Skill（自动测试用它隔离夹具） | `skills/algorithm-tutor/SKILL.md` |
 | `DSH_HOME` | DSH 用户数据根目录，由 DSH 自己读取；未设置时自检按 `~/.dsh` 处理 | `~/.dsh` |
 | `DEEPSEEK_API_KEY` | DSH 凭据来源之一（优先级最高） | 未设置 |
 
@@ -328,37 +364,42 @@ tests/                      Node 内置测试运行器，覆盖核心逻辑、AP
 | PUT | `/api/settings` | 保存设置 |
 | POST | `/api/agent/check` | 检测 Agent 可执行文件（不起模型请求） |
 | POST | `/api/problem` | 按 LeetCode 链接读取题面 |
-| GET | `/api/history` | 本地历史列表 |
-| POST | `/api/generate` | 启动一次生成任务 |
+| GET / PUT | `/api/skill` | 读取 / 保存教学 Skill（保存前校验并发修改并备份旧版本） |
+| GET | `/api/history` | 本地历史列表（已排除回收站中的记录） |
+| GET / POST | `/api/library` | 读取 / 修改专题与记录管理元数据 |
+| POST | `/api/generate` | 启动生成、重新生成（`regenerate`）或追问（`chat`） |
 | GET | `/api/jobs/:id` | 查询任务状态与结果（刷新后可恢复进度） |
 | POST | `/api/jobs/:id/cancel` | 停止生成 |
-| POST | `/api/export` | 导出 Markdown 到保存目录 |
+| POST | `/api/export` | 导出 Markdown 到保存目录（含追问交流） |
 
 ---
 
 ## 测试与验证
 
 ```powershell
-npm test                          # 37 项自动测试：核心逻辑、API 集成、自检、安全校验
+npm test                          # 45 项自动测试：核心逻辑、API 集成、顺序研习、专题管理、自检与安全校验
 npm run build                     # 前端生产构建
 npm run doctor                    # 本地 Agent 自检（只读）
 node scripts/smoke.mjs            # 真实 LeetCode + 真实 Codex 端到端（会消耗模型额度，需应用已运行）
+node scripts/smoke-0913.mjs       # 真实 DeepSeek 连续研习联调：首轮、两种再生成、同会话追问与导出
+npm run repair:dsh-web            # 修复 DSH Web 在本机 Chrome 下的 Origin 端口兼容问题（见「常见问题」）
 ```
 
-自动测试覆盖：URL 限制与 SSRF 防护、题面 HTML 白名单清理、Markdown 与文件名生成、跨来源请求拒绝（含 Chrome 去掉端口号的回归场景）、Harness 输入输出协议与长提示词、推理内容不外泄、代理继承与直连策略、dsh 三条发现路径与自检一致性、持久化、重复导出不覆盖、并发限制与取消，以及自检脚本在「什么都没有的机器」上不崩溃、不误判、不打印密钥。
+自动测试覆盖：URL 限制与 SSRF 防护、题面 HTML 白名单清理、Markdown 与文件名生成、跨来源请求拒绝（含 Chrome 去掉端口号的回归场景）、Harness 输入输出协议与长提示词、推理内容不外泄、代理继承与直连策略、dsh 三条发现路径与自检一致性、持久化、重复导出不覆盖、并发限制与取消、记录去重（重新生成不新增条目）、两种再生成方式、连续追问、失败时保留原答案、导出追问交流、教学 Skill 的并发冲突与备份、DSH 会话延续参数，以及自检脚本在「什么都没有的机器」上不崩溃、不误判、不打印密钥。
 
-真实 LeetCode / Codex 联调与模拟适配器测试分开记录，`npm test` 不会消耗任何模型额度。
+真实 LeetCode / Codex / DeepSeek 联调与模拟适配器测试分开记录，`npm test` 不会消耗任何模型额度。
 
 ---
 
 ## 安全与隐私
 
 - 服务只监听 `127.0.0.1`；`Host` 必须是本机回环地址，API 请求还需通过 Host / Origin / `Sec-Fetch-Site` 同源校验。
-- 写操作（设置、生成、导出）要求当前会话 token；token 每次启动重新生成。
+- 写操作（设置、生成、导出、Skill 编辑、记录整理）要求当前会话 token；token 每次启动重新生成。
 - 题面 HTML 经白名单清理（移除脚本、iframe、事件属性与外链图片）；题解 Markdown 不执行原始 HTML。
 - LeetCode URL 限制在 `leetcode.cn` / `leetcode.com` 两个官方域名，拒绝凭据、非标准端口与重定向。
 - 诊断信息会脱敏：`Bearer`、`sk-` 形式的密钥与带凭据的代理 URL 在写入 `.local/runs/*/job.json` 前被替换。
 - 自检脚本只判断凭据**是否存在**，任何情况下都不读取、不打印密钥内容。
+- `scripts/repair-dsh-web.mjs` 会修改你本机已安装的 DSH 文件，运行前请留意：它先在旁边保留 `.cc4-0913.bak` 备份，遇到不认识的 DSH 版本会**拒绝修改**而不是猜测。
 - 面向个人本机使用设计。**不要改成对外监听后直接公开。**
 
 ---
@@ -375,19 +416,23 @@ node scripts/smoke.mjs            # 真实 LeetCode + 真实 Codex 端到端（�
 
 ## 项目来源
 
-本仓库整理自作者本机的原型项目 `C:\Users\LENOVO\Desktop\CC4LetCode`。整理过程中只做**复制**：原目录未被修改或删除，两份内容可以并存（下面「与原型的差异」记录了全部改动）。整理前后对原型目录的 34 个源文件做过 SHA-256 比对，全部一致。
+本仓库整理自作者本机的原型项目 `C:\Users\LENOVO\Desktop\CC4LetCode`，并与该原型的最新版本保持同步（最近一次同步包含 0913「连续研习」与 0914「专题与研习记录管理」两次功能更新）。
+
+同步过程只做**复制**：原目录从未被修改或删除，两份内容可以并存。
 
 ### 与原型的差异
 
+除了原型的最新代码，本仓库额外含有以下内容（这些是原型所没有的）：
+
 | 变更 | 说明 |
 | --- | --- |
-| 新增 `scripts/doctor.mjs` | 本地 Agent 自检脚本 |
-| 新增 `server/harness.js` | 把 `findCodex()` 从 `server/index.js` 中提取出来，让应用与自检共用同一套发现逻辑（**行为不变**） |
-| 新增 `tests/doctor.test.js` | 11 项自检脚本测试 |
-| 修改 `server/index.js` | 仅删除已提取的 `findCodex()` 并改为导入 |
-| 修改 `package.json` | 新增 `description`、`engines` 与 `doctor` / `doctor:json` / `smoke` 脚本 |
-| 新增 `README.md`、`.github/workflows/ci.yml`、`Docs/.gitkeep` | 文档、CI 与导出目录占位 |
-| 新增 `启动研习室.cmd`、`停止研习室.cmd` | 与原型一致的 Windows 双击入口 |
+| 新增 `scripts/doctor.mjs` | 本地 Agent 自检脚本，只读、不发起模型请求 |
+| 新增 `tests/doctor.test.js`、`tests/harness-discovery.test.js` | 自检脚本与 dsh 发现路径的测试 |
+| 新增 `server/harness.js` | 把 Codex 发现与 dsh 发现收拢成应用与自检共用的出口（**行为不变**） |
+| `harness-discovery.js` 增加可注入的 `processExecPath` | 仅为让自检可测试，默认值与应用完全一致 |
+| `package.json` | 增加 `description`、`engines`、`license`、`repository` 与 `doctor` / `smoke` / `repair` 脚本 |
+| 新增 `README.md`、`LICENSE`、`.gitattributes`、`.github/workflows/ci.yml`、`Docs/.gitkeep` | 文档、MIT 许可、行尾规范、CI 与导出目录占位 |
+| 新增 `启动研习室.cmd`、`停止研习室.cmd` | Windows 双击入口 |
 
 初版需求与取舍：核心定位是求职算法学习助手，优先把读题、理解、代码对照与知识沉淀串起来；加入提示模式与个人思考以帮助主动训练；暂不做在线判题、自动提交、刷题统计或复杂课程体系。
 
@@ -417,11 +462,23 @@ npm start
 - Codex 报连接超时：先确认代理软件在运行。应用只把 Windows 手动代理写进 Agent 子进程的环境变量，不修改系统设置；PAC 自动配置不解析，需要在代理软件里改用固定端口模式。
 - DeepSeek Harness 报错：它固定直连、不使用任何代理，请直接检查能否访问 DeepSeek 端点，并确认 DSH 里的模型设置。超时可在「偏好设置 → 生成超时」中调大（上限 900 秒）。
 
+**重新生成会多出一条记录吗**
+不会。延续会话或在会话中重新生成都更新同一条研习记录，旧的答案与交流备份在 `.local/history-revisions/`。想看更早的版本可以到那里取。
+
+**DSH Web 只能在 Chrome 访客模式下用**
+这是 DSH Web 严格匹配 Origin 端口、而本机部分 Chrome 配置会去掉回环地址端口号造成的。仓库自带修复脚本：
+
+```powershell
+npm run repair:dsh-web
+```
+
+它会先备份原文件（`.cc4-0913.bak`）再打补丁，遇到不认识的 DSH 版本会直接报错退出、不做任何改动。升级 `dsh` 后可能需要重新运行。修复后仍用 `dsh web` 启动，并使用它打开的带启动认证流程的页面；只访问裸地址遇到 401 时，重新打开启动链接即可。本应用生成题解并不需要 `dsh web` 保持运行。
+
 **改了 Skill 需要重启吗**
-不需要。`skills/algorithm-tutor/SKILL.md` 每次生成都会重新读取。
+不需要，保存后下一次生成就会生效。网页端保存会把旧版本备份到 `.local/skill-backups/`。
 
 **换了电脑/重新克隆后要做什么**
-`npm ci` → `npm run doctor`（重新确认 Agent 路径）→ `npm run build` → `npm start`。`.local/`、`dist/`、`node_modules/` 都不在版本控制内，不会随 `git clone` 带过来；历史记录与设置需要自行备份 `.local/` 目录。
+`npm ci` → `npm run doctor`（重新确认 Agent 路径）→ `npm run build` → `npm start`。`.local/`、`dist/`、`node_modules/` 都不在版本控制内，不会随 `git clone` 带过来；**研习记录、专题与设置都保存在 `.local/`，需要自行备份这个目录**。
 
 ---
 

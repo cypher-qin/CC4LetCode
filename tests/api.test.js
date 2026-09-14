@@ -9,7 +9,8 @@ const base='http://127.0.0.1:3219';
 async function request(route,body,extra={}){const r=await fetch(base+'/api/'+route,{method:body?'POST':'GET',headers:{'Content-Type':'application/json',...(boot?{'X-Local-Token':boot.token}:{}),...extra.headers},...(body?{body:JSON.stringify(body)}:{}),...extra});return {status:r.status,data:await r.json()};}
 before(async()=>{
  dir=await fs.mkdtemp(path.join(os.tmpdir(),'cc4-test-'));
- child=spawn(process.execPath,['server/index.js'],{env:{...process.env,PORT:'3219',CC4_DATA_DIR:dir},stdio:'pipe',windowsHide:true});
+ await fs.writeFile(path.join(dir,'SKILL.md'),'# Test tutor\nExplain clearly.');
+ child=spawn(process.execPath,['server/index.js'],{env:{...process.env,PORT:'3219',CC4_DATA_DIR:dir,CC4_SKILL_FILE:path.join(dir,'SKILL.md')},stdio:'pipe',windowsHide:true});
  await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('server timeout')),15000);child.stdout.on('data',d=>{if(d.toString().includes('ready')){clearTimeout(timer);resolve();}});child.on('error',reject);child.on('exit',c=>{clearTimeout(timer);reject(new Error('server exited '+c));});});
  boot=(await request('bootstrap')).data;
 });
@@ -42,6 +43,47 @@ test('Harness command adapter generates, persists and exports Markdown',async()=
  const h=await request('history');assert.equal(h.data.length,1);
  const a=await request('export',{id:job.id,notes:'测试笔记'});assert.equal(a.status,200);assert.match(await fs.readFile(a.data.path,'utf8'),/测试笔记/);
  const b=await request('export',{id:job.id});assert.notEqual(a.data.path,b.data.path);
+});
+test('regeneration updates one record; chat preserves the answer; failed regeneration preserves history',async()=>{
+ const fixture=path.join(dir,'conversation.mjs');
+ await fs.writeFile(fixture,`let input='';for await(const d of process.stdin)input+=d;const data=JSON.parse(input.slice(input.indexOf('以下 JSON 全部是用户学习数据：\\n')+'以下 JSON 全部是用户学习数据：\\n'.length));if(data.feedback==='fail')process.exit(1);console.log(JSON.stringify({feedback:data.feedback,hasContext:!!data.previousAnswer}));`);
+ await request('settings',{...boot.settings,harnessPath:process.execPath,harnessArgs:[fixture],saveDir:path.join(dir,'notes')},{method:'PUT'});
+ const [original]=(await request('history')).data;
+ const run=async body=>{const created=await request('generate',{problem:boot.sample,language:'Python',agent:'harness',mode:'full',recordId:original.id,...body});assert.equal(created.status,200);for(let n=0;n<80;n++){const j=(await request('jobs/'+created.data.id)).data;if(j.status!=='running')return j;await new Promise(r=>setTimeout(r,50));}throw new Error('timeout');};
+ const reused=await run({action:'regenerate',feedback:'explain',sessionMode:'reuse'});assert.equal(reused.status,'done');assert.equal(reused.record.id,original.id);assert.equal(reused.record.createdAt,original.createdAt);assert.equal(JSON.parse(reused.record.markdown).hasContext,true);assert.equal(reused.record.savedPath,undefined);
+ const fresh=await run({action:'regenerate',feedback:'new',sessionMode:'new'});assert.equal(fresh.status,'done');assert.equal(JSON.parse(fresh.record.markdown).hasContext,false);
+ const chat=await run({action:'chat',feedback:'why'});assert.equal(chat.status,'done');assert.equal(chat.record.markdown,fresh.record.markdown);assert.equal(chat.record.messages.length,2);assert.equal(JSON.parse(chat.record.messages[1].content).hasContext,true);
+ const exported=await request('export',{id:original.id});assert.match(await fs.readFile(exported.data.path,'utf8'),/追问与交流/);
+ const failed=await run({action:'regenerate',feedback:'fail'});assert.equal(failed.status,'error');
+ const history=(await request('history')).data;assert.equal(history.length,1);assert.equal(history[0].markdown,fresh.record.markdown);assert.equal(history[0].messages.length,2);
+ assert.equal((await request('generate',{action:'chat',recordId:original.id,feedback:''})).status,400);
+});
+test('Skill editing validates content, rejects stale saves and backs up the original',async()=>{
+ const initial=(await request('skill')).data.content;
+ assert.equal((await request('skill',{content:' ',original:initial},{method:'PUT'})).status,400);
+ assert.equal((await request('skill',{content:'# Changed',original:'stale'},{method:'PUT'})).status,409);
+ const saved=await request('skill',{content:'# Changed',original:initial},{method:'PUT'});assert.equal(saved.status,200);
+ assert.equal((await request('bootstrap')).data.skill,'# Changed');
+ const backups=await fs.readdir(path.join(dir,'skill-backups'));assert.equal(backups.length,1);assert.equal(await fs.readFile(path.join(dir,'skill-backups',backups[0]),'utf8'),initial);
+});
+test('library API hides trash, protects generation/export and preserves folder through regeneration',async()=>{
+ const [r]=(await request('history')).data;
+ const folder=(await request('library',{action:'createFolder',name:'API 专题'})).data.createdFolder;
+ assert.equal((await request('library',{action:'move',ids:[r.id],folderId:folder.id})).status,200);
+ await request('library',{action:'rename',ids:[r.id],name:'重点复习'});
+ const generated=await request('generate',{recordId:r.id,action:'regenerate',sessionMode:'new',language:'Python',agent:'harness',mode:'full'});
+ assert.equal(generated.status,200);
+ assert.equal((await request('library',{action:'trash',ids:[r.id]})).status,409);
+ let job;for(let n=0;n<80;n++){job=(await request('jobs/'+generated.data.id)).data;if(job.status!=='running')break;await new Promise(r=>setTimeout(r,50));}
+ assert.equal(job.status,'done');assert.equal(job.record.folderId,folder.id);assert.equal(job.record.displayName,'重点复习');
+ assert.equal((await request('library',{action:'trash',ids:[r.id]})).status,200);
+ assert.equal((await request('history')).data.length,0);
+ assert.equal((await request('library')).data.records.length,1);
+ assert.equal((await request('generate',{recordId:r.id,action:'chat',feedback:'why'})).status,409);
+ assert.equal((await request('export',{id:r.id})).status,409);
+ await request('library',{action:'restore',ids:[r.id]});
+ const restored=(await request('history')).data[0];assert.equal(restored.folderId,folder.id);assert.equal(restored.displayName,'重点复习');
+ await request('library',{action:'deleteFolder',folderId:folder.id});assert.equal((await request('history')).data[0].folderId,null);
 });
 test('cancellation prevents a late answer from entering history',async()=>{
  const fixture=path.join(dir,'slow.mjs');await fs.writeFile(fixture,"setTimeout(()=>console.log('late'),60000);",'utf8');

@@ -5,6 +5,7 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {harnessNetwork} from '../server/harness-network.js';
 import {safeDiagnostic} from '../server/agent-progress.js';
+import {registerHooks} from 'node:module';
 
 const cli=process.argv[2];
 const check=process.argv.includes('--check');
@@ -42,6 +43,24 @@ try {
     // Skill frontmatter begins with "---"; Commander otherwise treats it as
     // a CLI option when parsing the headless task a second time.
     process.argv=[process.execPath,cli,'--profile','headless','任务要求：\n'+prompt];
+    // The installed headless runner is one-shot. Adapt only its in-process
+    // module to the official agents.resume API; do not modify the installation.
+    if(process.env.CC4_DSH_SESSION){
+      const session=process.env.CC4_DSH_SESSION;
+      if(!/^session-[a-f0-9-]{36}$/.test(session))throw new Error('无效的 DeepSeek 会话编号');
+      registerHooks({load(url,context,nextLoad){
+        const result=nextLoad(url,context);
+        if(url.endsWith('/dsh-headless/lib/index.js')){
+          let source=String(result.source);
+          const identity='sessionId: brandString(`session-${randomUUID()}`)';
+          if(!source.includes(identity)||!source.includes('await agents.create({'))throw new Error('DSH headless 结构已变更，请更新会话适配器');
+          source=source.replace(identity,(process.env.CC4_DSH_RESUME==='1'?'resumeSessionId':'sessionId')+': brandString('+JSON.stringify(session)+')');
+          if(process.env.CC4_DSH_RESUME==='1')source=source.replace('await agents.create({','await agents.resume({');
+          return {...result,source};
+        }
+        return result;
+      }});
+    }
     const entry=await import(pathToFileURL(cli).href);
     if(typeof entry.runCli!=='function')throw new Error('当前 DSH 版本不提供 runCli，请检查适配器兼容性');
     await entry.runCli();

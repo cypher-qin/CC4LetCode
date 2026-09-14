@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {discoverHarness} from '../server/harness-discovery.js';
+import {discoverHarness} from '../server/harness.js';
 import {checkHarness} from '../scripts/doctor.mjs';
 
 /** 造一个假的全局 npm 安装：<dir>/node_modules/@deepseek-ai/dsh/lib/bin.js */

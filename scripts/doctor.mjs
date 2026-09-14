@@ -12,8 +12,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
-import { findCodex, codexLogin } from '../server/harness.js';
-import { discoverHarness } from '../server/harness-discovery.js';
+import { findCodex, codexLogin, discoverHarness } from '../server/harness.js';
 import { harnessNetwork } from '../server/harness-network.js';
 import { agentNetwork } from '../server/agent-network.js';
 

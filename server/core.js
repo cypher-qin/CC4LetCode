@@ -18,6 +18,6 @@ export function plainText(html) {
 }
 export function safeFilename(title) { return title.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/g,'').slice(0,90) || '题解'; }
 export function exportMarkdown(record) {
-  return `# ${record.problem.id ? record.problem.id + '. ' : ''}${record.problem.title}\n\n- 题目：${record.problem.url}\n- 语言：${record.language}\n- Agent：${record.agent}\n- 模式：${record.mode === 'hint' ? '渐进提示' : '完整题解'}\n- 时间：${record.createdAt}\n\n---\n\n${record.markdown}\n${record.notes ? '\n---\n\n## 我的思考\n\n'+record.notes+'\n' : ''}`;
+  return `# ${record.problem.id ? record.problem.id + '. ' : ''}${record.problem.title}\n\n- 题目：${record.problem.url}\n- 语言：${record.language}\n- Agent：${record.agent}\n- 模式：${record.mode === 'hint' ? '渐进提示' : '完整题解'}\n- 时间：${record.createdAt}\n\n---\n\n${record.markdown}\n${record.messages?.length?'\n---\n\n## 追问与交流\n\n'+record.messages.map(m=>'### '+(m.role==='user'?'我的问题':'Agent 回答')+'\n\n'+m.content).join('\n\n')+'\n':''}${record.notes ? '\n---\n\n## 我的思考\n\n'+record.notes+'\n' : ''}`;
 }
 export function exportPath(folder, record) {return path.join(folder, `${safeFilename(record.problem.id + '-' + record.problem.title)}-${record.language.replace(/\+/g,'p')}-${record.id}.md`);}

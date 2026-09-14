@@ -308,6 +308,7 @@ scripts/
   repair-dsh-web.mjs          修复 DSH Web 在本机 Chrome 下的 Origin 端口兼容问题
   start.ps1 / stop.ps1        Windows 一键启动与停止
   smoke.mjs / smoke-0913.mjs  真实网络 + 真实 Agent 端到端验证（会消耗额度）
+  sync-audit.mjs               对比原型目录，检查同步是否完整（只读）
 tests/                        Node 内置测试运行器，覆盖核心逻辑、API 集成、专题管理与自检
 启动研习室.cmd / 停止研习室.cmd   Windows 双击入口（调用 scripts/*.ps1）
 ```
@@ -354,10 +355,18 @@ tests/                        Node 内置测试运行器，覆盖核心逻辑、
 | `DSH_HOME` | DSH 用户数据根目录，由 DSH 自己读取；未设置时自检按 `~/.dsh` 处理 | `~/.dsh` |
 | `DEEPSEEK_API_KEY` | DSH 凭据来源之一（优先级最高） | 未设置 |
 
+### 运行与生命周期
+
+- 关掉网页**不会**停止后台服务：用 `启动研习室.cmd` 启动的服务要靠 `停止研习室.cmd` 停止，前台启动的服务按 `Ctrl+C` 停止。
+- 生成过程中刷新页面可以恢复进度与取消入口；停止服务会终止当前任务。
+- 后端改动在重启服务后生效；前端改动在 `npm run build` 后生效（`npm run dev` 自动生效）。
+- 服务重启时若上次生成还在运行，该任务会被标记为「服务已重启，上次生成中断」，直接重新生成即可。
+- 生成过程中不能整理记录（移动、回收站等会被拒绝），避免误操作正在写入的记录。
+- 任务完成时临时提示词被删除；取消或异常时可能留下 `.local/runs/<任务编号>/prompt.txt` 供排查。
+
 ### HTTP API
 
 服务只监听 `127.0.0.1`，并校验 `Host` 与来源；写操作要求当前会话 token（页面从 `GET /api/bootstrap` 获取，经 `X-Local-Token` 发送）。
-
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/bootstrap` | 会话 token、设置、内置示例、进行中的任务、教学 Skill 全文 |
@@ -383,6 +392,7 @@ npm run doctor                    # 本地 Agent 自检（只读）
 node scripts/smoke.mjs            # 真实 LeetCode + 真实 Codex 端到端（会消耗模型额度，需应用已运行）
 node scripts/smoke-0913.mjs       # 真实 DeepSeek 连续研习联调：首轮、两种再生成、同会话追问与导出
 npm run repair:dsh-web            # 修复 DSH Web 在本机 Chrome 下的 Origin 端口兼容问题（见「常见问题」）
+node scripts/sync-audit.mjs       # 原型更新后检查同步是否完整（只读，需要原型目录存在）
 ```
 
 自动测试覆盖：URL 限制与 SSRF 防护、题面 HTML 白名单清理、Markdown 与文件名生成、跨来源请求拒绝（含 Chrome 去掉端口号的回归场景）、Harness 输入输出协议与长提示词、推理内容不外泄、代理继承与直连策略、dsh 三条发现路径与自检一致性、持久化、重复导出不覆盖、并发限制与取消、记录去重（重新生成不新增条目）、两种再生成方式、连续追问、失败时保留原答案、导出追问交流、教学 Skill 的并发冲突与备份、DSH 会话延续参数，以及自检脚本在「什么都没有的机器」上不崩溃、不误判、不打印密钥。
@@ -433,6 +443,7 @@ npm run repair:dsh-web            # 修复 DSH Web 在本机 Chrome 下的 Origi
 | `package.json` | 增加 `description`、`engines`、`license`、`repository` 与 `doctor` / `smoke` / `repair` 脚本 |
 | 新增 `README.md`、`LICENSE`、`.gitattributes`、`.github/workflows/ci.yml`、`Docs/.gitkeep` | 文档、MIT 许可、行尾规范、CI 与导出目录占位 |
 | 新增 `启动研习室.cmd`、`停止研习室.cmd` | Windows 双击入口 |
+| 新增 `需求0907.txt`、`需求0913.txt` | 原型的需求文档原样保留，便于对照功能来源与后续迭代 |
 
 初版需求与取舍：核心定位是求职算法学习助手，优先把读题、理解、代码对照与知识沉淀串起来；加入提示模式与个人思考以帮助主动训练；暂不做在线判题、自动提交、刷题统计或复杂课程体系。
 

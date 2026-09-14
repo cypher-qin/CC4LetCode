@@ -25,7 +25,8 @@
     "doctor:json": "node scripts/doctor.mjs --json",
     "smoke": "node scripts/smoke.mjs",
     "smoke:0913": "node scripts/smoke-0913.mjs",
-    "repair:dsh-web": "node scripts/repair-dsh-web.mjs"
+    "repair:dsh-web": "node scripts/repair-dsh-web.mjs",
+    "audit:sync": "node scripts/sync-audit.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "6.1.1",

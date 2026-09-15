@@ -19,7 +19,22 @@ const PORT = Number(process.env.PORT || 3210);
 await fs.mkdir(path.join(DATA,'runs'),{recursive:true});
 await fs.mkdir(path.join(DATA,'history'),{recursive:true});
 async function readJson(file, fallback) {try{return JSON.parse(await fs.readFile(file,'utf8'));}catch(error){if(error.code==='ENOENT')return fallback;throw error;}}
-async function writeJson(file, value) {const tmp=file+'.'+randomUUID()+'.tmp';await fs.writeFile(tmp,JSON.stringify(value,null,2),'utf8');await fs.rename(tmp,file);}
+// Windows refuses rename-over-existing (EPERM/EACCES/EBUSY) while an antivirus
+// scan, indexer or open reader still holds a handle, so retry briefly and always
+// remove the temporary file instead of leaving it behind.
+async function writeJson(file, value) {
+  const tmp=file+'.'+randomUUID()+'.tmp';
+  try{
+    await fs.writeFile(tmp,JSON.stringify(value,null,2),'utf8');
+    for(let attempt=0;;attempt++){
+      try{await fs.rename(tmp,file);return;}
+      catch(error){
+        if(!['EPERM','EACCES','EBUSY'].includes(error.code)||attempt>=4)throw error;
+        await new Promise(resolve=>setTimeout(resolve,20*2**attempt));
+      }
+    }
+  }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+}
 const defaults={saveDir:path.join(ROOT,'Docs'),codexPath:await findCodex(),model:'',...await discoverHarness(ROOT),timeoutSeconds:300};
 let settings = {...defaults,...await readJson(path.join(DATA,'settings.json'),{})};
 // Desktop updates rotate the bundled binary directory. Repair only stale
@@ -35,16 +50,32 @@ let skillSaving=false;
 let generationAdmission=false;
 const library=await createLibrary(DATA,{isBusy:()=>generationAdmission||[...jobs.values()].some(j=>j.status==='running')});
 const jobWrites = new Map();
-function persistJob(job){
-  const snapshot=publicJob(job);
+function jobFile(id){return path.join(DATA,'runs',id,'job.json');}
+function persistSnapshot(job, snapshot){
   const previous=jobWrites.get(job.id)||Promise.resolve();
-  const pending=previous.then(()=>writeJson(path.join(DATA,'runs',job.id,'job.json'),snapshot)).catch(e=>console.error('保存任务状态失败：'+e.message));
+  const pending=previous.then(()=>writeJson(jobFile(job.id),snapshot)).catch(async error=>{
+    // The atomic rename can stay blocked (Windows antivirus holding the file):
+    // rewrite in place so a recorded state is never lost, and only then report.
+    console.error('保存任务状态失败，改用直接写入：'+error.message);
+    try{await fs.writeFile(jobFile(job.id),JSON.stringify(snapshot,null,2),'utf8');}
+    catch(fallback){job.persistError=`任务状态未能写入磁盘：${fallback.message}`;console.error('保存任务状态失败：'+fallback.message);}
+  });
   jobWrites.set(job.id,pending);return pending;
 }
+function persistJob(job){return persistSnapshot(job,publicJob(job));}
 function progress(job,stage,detail){
   job.stage=stage;job.lastActivityAt=new Date().toISOString();
   job.diagnostics=[...(job.diagnostics||[]),{at:job.lastActivityAt,stage,...(detail?{detail:safeDiagnostic(detail)}:{})}].slice(-25);
   void persistJob(job);
+}
+// Job snapshots are the only state a restarted service can read, so a terminal
+// state is written to disk before it becomes visible in memory; anything that
+// observes a finished job then finds the same state in runs/<id>/job.json.
+async function settleJob(job,status,error,stage,detail){
+  const at=new Date().toISOString();
+  const diagnostics=[...(job.diagnostics||[]),{at,stage,...(detail?{detail:safeDiagnostic(detail)}:{})}].slice(-25);
+  await persistSnapshot(job,publicJob({...job,status,error,stage,lastActivityAt:at,diagnostics}));
+  job.status=status;job.error=error;job.stage=stage;job.lastActivityAt=at;job.diagnostics=diagnostics;
 }
 const app=express();
 app.disable('x-powered-by');
@@ -154,7 +185,7 @@ app.post('/api/generate',(req,res,next)=>{
   const sessionCwd=sessionId&&previous?.sessionCwd?previous.sessionCwd:runDir;
   const child=spawn(agent==='codex'?config.codexPath:config.harnessPath,args,{cwd:sessionCwd,shell:false,windowsHide:true,env:{...network.env,...(nativeHarness?{CC4_DSH_SESSION:harnessSession,CC4_DSH_RESUME:sessionId?'1':'0'}:{})}});job.child=child;
   let stdout='',stderr='',finished=false,eventBuffer='',eventAnswer='',harnessStderr='';
-  const timer=setTimeout(()=>{if(job.status==='running'){job.status='error';job.error=`生成超过 ${config.timeoutSeconds} 秒，已停止。${agent==='harness'?'DeepSeek 使用直连，请检查网络、DSH 模型设置，或延长生成时间后重试。':job.stage.includes('连接')?'模型连接异常，请检查系统代理是否正常运行。':'可在设置中延长生成时间后重试。'}`;progress(job,'生成超时',job.error);stopChild(child);}},config.timeoutSeconds*1000);
+  const timer=setTimeout(()=>{if(finished||job.status!=='running')return;finished=true;const error=`生成超过 ${config.timeoutSeconds} 秒，已停止。${agent==='harness'?'DeepSeek 使用直连，请检查网络、DSH 模型设置，或延长生成时间后重试。':job.stage.includes('连接')?'模型连接异常，请检查系统代理是否正常运行。':'可在设置中延长生成时间后重试。'}`;stopChild(child);void settleJob(job,'error',error,'生成超时',error);},config.timeoutSeconds*1000);
   child.stdout.setEncoding('utf8');child.stderr.setEncoding('utf8');
   child.stdout.on('data',d=>{
     stdout=(stdout+d).slice(-300000);if(agent!=='codex'||job.status!=='running')return;
@@ -180,9 +211,9 @@ app.post('/api/generate',(req,res,next)=>{
     stderr=(stderr+d).slice(-6000);if(job.status==='running'&&/stream disconnected|request timed out/i.test(d))progress(job,'模型连接超时，正在重试','请确认系统代理已运行；具体重试结果将显示在这里。');
   });
   child.stdin.on('error',()=>{});child.stdin.end(prompt);
-  child.on('error',error=>{finished=true;clearTimeout(timer);job.status='error';job.error=`无法启动 Agent：${error.message}`;progress(job,'Agent 启动失败',job.error);});
+  child.on('error',error=>{finished=true;clearTimeout(timer);const detail=`无法启动 Agent：${error.message}`;void settleJob(job,'error',detail,'Agent 启动失败',detail);});
   child.on('close',async code=>{
-    clearTimeout(timer);if(finished||job.status!=='running')return;
+    clearTimeout(timer);if(finished||job.status!=='running')return;finished=true;
     try{
       if(code!==0)throw new Error(job.error||`Agent 退出码 ${code}。${safeDiagnostic(stderr.slice(-1800))}`);
       let markdown;try{markdown=await fs.readFile(outputFile,'utf8');}catch{markdown=agent==='harness'?stdout:eventAnswer;}
@@ -196,8 +227,8 @@ app.post('/api/generate',(req,res,next)=>{
         await writeJson(path.join(DATA,'history-revisions',record.id,id+'.json'),previous);
         delete record.savedPath;
       }
-      await writeJson(path.join(DATA,'history',record.id+'.json'),record);job.record=record;job.status='done';job.error=null;progress(job,action==='chat'?'追问已回答':'题解已生成');
-    }catch(error){job.status='error';job.error=error.message;progress(job,'生成失败',job.error);}
+      await writeJson(path.join(DATA,'history',record.id+'.json'),record);job.record=record;await settleJob(job,'done',null,action==='chat'?'追问已回答':'题解已生成');
+    }catch(error){await settleJob(job,'error',error.message,'生成失败',error.message);}
     // Prompts are temporary; keep only the final answer in history.
     await fs.rm(promptFile,{force:true}).catch(()=>{});
   });
